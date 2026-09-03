@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Aldermere — Voxel Kingdom</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1026; font-family: "Georgia", "Palatino Linotype", serif; color: #f1e8d2; }
+  canvas.three { display: block; }
+  #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #2a1e12 0%, #0b0906 100%); z-index: 10; }
+  #loading h1 { font-size: 46px; letter-spacing: 6px; margin: 0 0 8px; color: #e8c872; text-shadow: 0 2px 12px #000; }
+  #loading p { margin: 0 0 24px; color: #c7b58f; font-style: italic; }
+  #barwrap { width: 420px; height: 12px; background: #1a130b; border: 1px solid #6d5630; }
+  #bar { height: 100%; width: 0; background: linear-gradient(90deg, #b8862e, #f0c445); transition: width .15s; }
+  #loadmsg { margin-top: 12px; font-size: 13px; color: #a89670; }
+  #hud { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .panel { position: absolute; background: rgba(12, 9, 5, .72); border: 1px solid rgba(232, 200, 114, .35); padding: 10px 14px; font-size: 13px; line-height: 1.5; backdrop-filter: blur(3px); }
+  #top { left: 14px; top: 14px; min-width: 260px; }
+  #top h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: 3px; color: #e8c872; }
+  #clock { font-size: 22px; color: #fff; font-variant-numeric: tabular-nums; }
+  #status.alarm { color: #ff6b4a; font-weight: bold; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .55; } }
+  #log { right: 14px; top: 14px; width: 380px; max-height: 46vh; overflow: hidden; }
+  #log .entry { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); transition: opacity 2s; }
+  #log .entry.fade { opacity: .45; }
+  #log .t { color: #a89670; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  #log .alarm { color: #ff8a5a; font-weight: bold; } #log .death { color: #d8a0a0; } #log .kill { color: #b8e0a0; } #log .fire { color: #ffb347; } #log .impact { color: #f0d090; } #log .panic { color: #f5e0b0; font-style: italic; }
+  #help { left: 14px; bottom: 14px; width: 330px; }
+  #help.hidden { display: none; }
+  #help b { color: #e8c872; }
+  kbd { display: inline-block; background: #2a2016; border: 1px solid #6d5630; border-radius: 3px; padding: 0 5px; font-family: inherit; font-size: 12px; color: #f0e0c0; margin-right: 4px; }
+  #minimap { position: absolute; right: 14px; bottom: 14px; width: 256px; height: 256px; border: 1px solid rgba(232,200,114,.45); image-rendering: pixelated; background: #000; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,.85); }
+  #crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; } #crosshair::after { top: 6px; left: 0; width: 14px; height: 2px; }
+  #hover { position: absolute; left: 50%; top: 54%; transform: translateX(-50%); display: none; max-width: 420px; text-align: center; }
+  #hover .job { color: #e8c872; font-style: italic; } #hover .dim { color: #bfae8a; font-size: 12px; } #hover .warn { color: #ff9a6a; }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); width: 420px; }
+  #dragonbar { top: 16px; display: none; } #gatebar { top: 78px; display: none; width: 300px; }
+  .bar .label { text-align: center; font-size: 13px; color: #ffb347; margin-bottom: 3px; text-shadow: 0 1px 4px #000; }
+  .bar .track { height: 10px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.3); }
+  .bar .fill { height: 100%; background: linear-gradient(90deg, #7a1010, #ff5a2a); }
+  #gatebar .fill { background: linear-gradient(90deg, #405060, #9ab0c8); } #gatebar .label { color: #bcd; }
+  .small { font-size: 11px; color: #a89670; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+  <div id="loading">
+    <h1>ALDERMERE</h1>
+    <p>a medieval voxel kingdom — 512 × 512 blocks, fully destructible</p>
+    <div id="barwrap"><div id="bar"></div></div>
+    <div id="loadmsg">Preparing...</div>
+  </div>
+  <div id="hud">
+    <div id="top" class="panel">
+      <h2>ALDERMERE</h2>
+      <div id="clock">08:00</div>
+      <div id="loc">—</div>
+      <div id="status">Peace</div>
+      <div class="small"><span id="pop"></span><br><span id="fires"></span><br><span id="mode">ON FOOT</span> · <span id="fps">0</span> fps</div>
+    </div>
+    <div id="log" class="panel"></div>
+    <div id="help" class="panel">
+      <b>Controls</b><br>
+      <kbd>Click</kbd> take control · <kbd>Esc</kbd> release<br>
+      <kbd>W A S D</kbd> move · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump<br>
+      <kbd>F</kbd> toggle flight (<kbd>Space</kbd>/<kbd>C</kbd> up/down)<br>
+      <kbd>LMB</kbd> warhammer — smash blocks & foes<br>
+      <kbd>RMB</kbd> fireball — big destructible explosion<br>
+      <kbd>Q</kbd> place stone · <kbd>X</kbd> set fire<br>
+      <kbd>I</kbd> trigger the invasion now · <kbd>G</kbd> summon / call off the dragon<br>
+      <kbd>T</kbd> skip 3 hours · <kbd>H</kbd> hide this panel<br>
+      <span class="small">Look at any person or building for details. The invasion begins automatically after 75s, the dragon at 140s.</span>
+    </div>
+    <div id="dragonbar" class="bar"><div class="label" id="dragonname"></div><div class="track"><div class="fill" id="dragonhp"></div></div></div>
+    <div id="gatebar" class="bar"><div class="label">East Gate</div><div class="track"><div class="fill" id="gatehp"></div></div></div>
+    <canvas id="minimap" width="256" height="256"></canvas>
+    <div id="crosshair"></div>
+    <div id="hover" class="panel"></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
